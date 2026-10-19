@@ -1,0 +1,4 @@
+# QBEAST AI circuit & liquidity flags v2.4.0
+# Python >= 3.10. Tested: pandas 2.0.3 / 2.2.3 / 3.0.x with numpy 1.24 / 1.26 / 2.4 / 2.5
+pandas>=2.0
+numpy>=1.24
