@@ -19,6 +19,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from qbeast_gate import DEFAULT_FLAGS_DIR, QbeastFlagStore, gated_targets
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PRICE_DIR = ROOT / "DATASET" / "Final_without_survivorship_data" / "Final_NIFTY500_EoD_Data"
@@ -86,8 +87,20 @@ def load_rebalances(path: Path) -> dict[pd.Timestamp, dict[str, float]]:
     return rebalances
 
 
+def load_signal_dates(path: Path) -> dict[pd.Timestamp, pd.Timestamp]:
+    frame = pd.read_csv(path, usecols=["signal_date", "execution_date"])
+    frame["signal_date"] = pd.to_datetime(frame["signal_date"], errors="coerce").dt.normalize()
+    frame["execution_date"] = pd.to_datetime(frame["execution_date"], errors="coerce").dt.normalize()
+    frame = frame.dropna(subset=["signal_date", "execution_date"])
+    pairs = frame[["execution_date", "signal_date"]].drop_duplicates()
+    if pairs.execution_date.duplicated().any():
+        raise ValueError("An execution date maps to multiple signal dates")
+    return dict(zip(pairs.execution_date, pairs.signal_date))
+
+
 def simulate(prices: pd.DataFrame, benchmark: pd.Series,
              rebalances: dict[pd.Timestamp, dict[str, float]],
+             signal_dates: dict[pd.Timestamp, pd.Timestamp], qbeast: QbeastFlagStore,
              slippage_bps: float, transaction_cost_bps: float) -> pd.DataFrame:
     """Close-to-close portfolio simulation with two-sided turnover costs."""
     if slippage_bps < 0 or transaction_cost_bps < 0:
@@ -95,19 +108,23 @@ def simulate(prices: pd.DataFrame, benchmark: pd.Series,
     cost_rate = (slippage_bps + transaction_cost_bps) / 10_000
     # Use TRI dates as the exchange-session calendar. Stock files can contain
     # extra dates absent from NSE's index series; those are not valid sessions.
-    # Forward-fill each stock only on that calendar, so a missing quote carries
-    # its last known close until the next official session.
+    # Never synthesize missing quotes. Returns span observed exchange sessions;
+    # an unquoted session contributes zero, with no stale-price flat return.
     benchmark = benchmark.sort_index()
     session_start = max(prices.index.min(), benchmark.index.min())
     session_end = min(prices.index.max(), benchmark.index.max())
     sessions = benchmark.index[(benchmark.index >= session_start) & (benchmark.index <= session_end)]
-    session_prices = prices.sort_index().reindex(sessions, method="ffill")
-    returns = session_prices.pct_change(fill_method=None)
+    session_prices = prices.sort_index().reindex(sessions)
+    returns = session_prices.apply(
+        lambda series: series.dropna().pct_change(fill_method=None).reindex(sessions)
+    )
     benchmark_returns = benchmark.pct_change(fill_method=None).reindex(sessions)
     holdings: dict[str, float] = {}
     equity = 1.0
     rows = []
-    for date in sessions:
+    blocked_order_count = 0
+    blocked_holding_days = 0
+    for session_i, date in enumerate(sessions):
         prior_equity = equity
         r = returns.loc[date]
         gross_return = sum(weight * (float(r[symbol]) if symbol in r and pd.notna(r[symbol]) else 0.0)
@@ -128,6 +145,13 @@ def simulate(prices: pd.DataFrame, benchmark: pd.Series,
         # Rebalance after today's close: today's return used old holdings.
         targets = rebalances.get(date.normalize())
         if targets is not None:
+            signal_date = signal_dates.get(date.normalize())
+            if signal_date is None:
+                raise ValueError(f"Missing signal date for execution {date.date()}")
+            blocked = qbeast.blocked_symbols(set(holdings) | set(targets), signal_date)
+            blocked_order_count += len(blocked)
+            blocked_holding_days += sum(s in holdings for s in blocked)
+            targets = gated_targets(holdings, targets, blocked)
             symbols = set(holdings) | set(targets)
             deltas = {s: targets.get(s, 0.0) - holdings.get(s, 0.0) for s in symbols}
             buy_turnover = sum(max(delta, 0.0) for delta in deltas.values())
@@ -135,6 +159,18 @@ def simulate(prices: pd.DataFrame, benchmark: pd.Series,
             cost = (buy_turnover + sell_turnover) * cost_rate
             equity *= max(0.0, 1.0 - cost)
             holdings = dict(targets)
+        # Mark the portfolio as closed at the end of the measured period.
+        if date == sessions[-1] and holdings:
+            known_flag_date = sessions[session_i - 1] if session_i > 0 else date
+            final_blocked = qbeast.blocked_symbols(holdings, known_flag_date)
+            liquidation_turnover = sum(weight for symbol, weight in holdings.items()
+                                       if symbol not in final_blocked)
+            liquidation_cost = liquidation_turnover * cost_rate
+            sell_turnover += liquidation_turnover
+            cost += liquidation_cost
+            equity *= max(0.0, 1.0 - liquidation_cost)
+            holdings = {symbol: weight for symbol, weight in holdings.items()
+                        if symbol in final_blocked}
         net_return = equity / prior_equity - 1.0 if prior_equity > 0 else np.nan
         rows.append({
             "date": date,
@@ -147,6 +183,8 @@ def simulate(prices: pd.DataFrame, benchmark: pd.Series,
             "portfolio_net_return": net_return,
             "benchmark_return": benchmark_returns.loc[date],
             "holdings_count": len(holdings),
+            "qbeast_blocked_orders_cumulative": blocked_order_count,
+            "qbeast_blocked_holding_events_cumulative": blocked_holding_days,
         })
     result = pd.DataFrame(rows).set_index("date")
     first_trade = min(rebalances)
@@ -187,9 +225,9 @@ def performance_summary(results: pd.DataFrame) -> pd.DataFrame:
 
 def save_plot(results: pd.DataFrame, path: Path) -> None:
     fig, ax = plt.subplots(figsize=(12, 6.5))
-    ax.plot(results.index, results["portfolio_equity"], label="Momentum 50 portfolio (net costs)", linewidth=1.7)
+    ax.plot(results.index, results["portfolio_equity"], label="Strategy portfolio (net costs)", linewidth=1.7)
     ax.plot(results.index, results["benchmark_equity"], label="Nifty 500 gross TRI", linewidth=1.5)
-    ax.set_title("Portfolio vs Nifty 500 TRI")
+    ax.set_title("Strategy portfolio vs Nifty 500 TRI")
     ax.set_ylabel("Growth of 100")
     ax.set_xlabel("Date")
     ax.grid(True, alpha=0.25)
@@ -205,23 +243,36 @@ def main() -> None:
     parser.add_argument("--prices", type=Path, default=DEFAULT_PRICE_DIR)
     parser.add_argument("--benchmark", type=Path, default=DEFAULT_BENCHMARK)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--qbeast-flags-dir", type=Path, default=DEFAULT_FLAGS_DIR,
+                        help="QBEAST v2.4.4 per-stock EOD outputs (strict coverage required).")
     parser.add_argument("--slippage-bps", type=float, default=10.0, help="Slippage per buy or sell side, in basis points.")
     parser.add_argument("--transaction-cost-bps", type=float, default=10.0, help="Transaction cost per buy or sell side, in basis points.")
     args = parser.parse_args()
     if args.slippage_bps < 0 or args.transaction_cost_bps < 0:
         parser.error("cost rates must be nonnegative")
     rebalances = load_rebalances(args.selections)
+    signal_dates = load_signal_dates(args.selections)
+    qbeast = QbeastFlagStore(args.qbeast_flags_dir)
     symbols = {symbol for weights in rebalances.values() for symbol in weights}
     prices = load_prices(args.prices, symbols)
     benchmark = load_benchmark(args.benchmark)
-    results = simulate(prices, benchmark, rebalances, args.slippage_bps, args.transaction_cost_bps)
+    results = simulate(prices, benchmark, rebalances, signal_dates, qbeast,
+                       args.slippage_bps, args.transaction_cost_bps)
     summary = performance_summary(results)
+    summary["qbeast_version"] = "2.4.4"
+    summary["qbeast_flags_dir"] = str(qbeast.flags_dir)
+    summary["qbeast_blocked_order_events"] = int(results.qbeast_blocked_orders_cumulative.iloc[-1])
+    summary["qbeast_blocked_holding_events"] = int(results.qbeast_blocked_holding_events_cumulative.iloc[-1])
+    summary["qbeast_unliquidated_final_holdings"] = int(results.holdings_count.iloc[-1])
     args.output.mkdir(parents=True, exist_ok=True)
     results.to_csv(args.output / "backtest_daily.csv", index_label="date")
     summary.to_csv(args.output / "performance_summary.csv", index=False)
     save_plot(results, args.output / "equity_plot.png")
     print(f"Rebalances: {len(rebalances)}; holdings universe: {len(symbols)}")
     print(f"Cost each side: slippage {args.slippage_bps:g} bps + transaction {args.transaction_cost_bps:g} bps")
+    print(f"QBEAST v2.4.4 gate: {qbeast.flags_dir}; blocked order/holding events: "
+          f"{int(results.qbeast_blocked_orders_cumulative.iloc[-1])}/"
+          f"{int(results.qbeast_blocked_holding_events_cumulative.iloc[-1])}")
     print(summary.to_string(index=False, float_format=lambda x: f"{x:.2%}"))
     print(f"Saved daily returns, summary, and equity plot under {args.output}")
 

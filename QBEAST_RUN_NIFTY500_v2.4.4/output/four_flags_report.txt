@@ -1,0 +1,44 @@
+QBEAST four-flag runner | circuit_liquidity_flags v2.4.4 | pandas 3.0.3 | workers 2
+config: C:\BTP\QBEAST_pipeline_config.json | S=5 E=3 lock=close_locked tick=0.05 mwcb_basis=auto block_on_mwcb_day=True | volume: quality=True zero_run_missing=20 avg_days=3 tag<0.5 untag>=0.5 missing_fallback=True chronic_missing_as_no_trade=False | step: enabled=True stale_run=3 jump>=2.0% after>=2 stale, 2 in 40 untag=2 stale_vol<0.2 | zero_vol_as_missing=True vol_reliability<0.5 ca_jump>35.0% | ETF overrides: circuit 0, staircase 1, chronic 4 | ETF traded-value floor=250000 from 2020-01-01
+data=DATASET\Final_without_survivorship_data
+out =C:\BTP\QBEAST_RUN_NIFTY500_v2.4.4\output
+
+[MWCB] indices used: ['NIFTY50'] | trigger days: 10
+   2004-05-17  LOWER_15
+   2006-05-22  LOWER_10
+   2007-10-17  LOWER_10
+   2008-01-21  LOWER_10
+   2008-01-22  LOWER_10
+   2008-10-24  LOWER_10
+   2009-05-18  UPPER_20
+   2012-10-05  LOWER_15
+   2020-03-13  LOWER_10
+   2020-03-23  LOWER_10
+   excluded input files: nifty500.csv
+
+[EOD STOCKS] 495 files
+   done in 644s | ok 495 | not ok 0
+
+[EOD STOCKS] symbol-days 1,857,499 - value counts per column
+   PRICE_BAND    UNKNOWN: 1,796,348 | 5: 35,048 | 10: 12,956 | 20: 11,648 | 2: 1,499
+   CIRCUIT       (blank): 1,847,695 | UPPER: 5,903 | LOWER: 3,082 | LOWER_1TICK: 418 | UPPER_1TICK: 401
+   MWCB          (blank): 1,854,814 | LOWER_10: 1,954 | LOWER_15: 471 | UPPER_20: 260
+   STAIRCASE     (blank): 1,847,804 | BUILDING: 8,044 | CLIMBING: 931 | FALLING: 720
+   TRADE_BLOCKED NO: 1,832,690 | CHRONIC: 17,732 | MWCB_DAY: 2,655 | CHRONIC+STEP_STAIRCASE: 1,999 | STAIRCASE+CHRONIC: 1,023 | STEP_STAIRCASE: 748 | STAIRCASE: 622 | CHRONIC+MWCB_DAY: 23 | STAIRCASE+MWCB_DAY: 4 | STAIRCASE+CHRONIC+MWCB_DAY: 2
+   STAIRCASE_VOL_WARN (blank): 1,857,125 | LADDER_HIGH_VOL: 276 | NORMAL_NO_VOL: 65 | UNTAGGED_NO_VOL: 17 | TAGGED_NO_VOL: 16
+   STEP          (blank): 1,829,790 | BUILDING: 24,961 | FLAT: 1,521 | CLIMBING: 664 | FALLING: 563
+   ASSET_CLASS   STOCK: 1,857,499
+
+   STAIRCASE on each stock's last date (0): 
+   BUILDING on last date (2): HFCL, PFOCUS
+   TRADE_BLOCKED on last date (0): 
+   TRADE_BLOCKED stock-days: 24,809 (1.34%)
+   staircase episodes: 83 in 45 stocks
+   STEP staircase episodes (v2.4.3): 203 in 61 stocks
+
+[SELF-CHECK] causality (no-repaint on all output columns + streaming parity): {'skipped': 445, 'ok': 50}
+
+[EOD INDICES] 1 files
+   Nifty 50                 rows  6,627  2000-01-03..2026-08-26  MWCB days 10
+
+Total 699s. Wrote: C:\BTP\QBEAST_RUN_NIFTY500_v2.4.4\output

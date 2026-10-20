@@ -1,0 +1,77 @@
+{
+  "paper": "QED Capital, Momentum Factor in Indian Markets: Evidence from the Long Side (2021 working paper)",
+  "implementation_status": "transparent proxy; Q-Mom score formula is not fully disclosed in the paper",
+  "requested_period": [
+    "2014-01-01",
+    "2021-06-30"
+  ],
+  "actual_entry_period": [
+    "2014-01-01",
+    "2021-06-01"
+  ],
+  "actual_measurement_period": [
+    "2014-01-01",
+    "2021-07-01"
+  ],
+  "universe": "point-in-time Nifty 200 membership; only names with usable monthly endpoints and volatility history rank",
+  "portfolio": "top 30, equal weight, long-only; monthly rotation",
+  "momentum_formula": "log(adjusted close at month t-1 / adjusted close at month t-12); latest month skipped",
+  "vol_adjusted_formula": "adjusted momentum divided by annualized daily adjusted-close volatility over same formation window",
+  "benchmark": "Nifty 200 adjusted price index open-to-open; stock prices use adj_close-adjusted opens. No matching TRI benchmark is present.",
+  "costs_bps_per_traded_notional_per_side": {
+    "slippage": 10.0,
+    "transaction_cost": 10.0
+  },
+  "cost_model": "costs apply to buys and sells implied by weight changes; final exit cost applies only to positions QBEAST permits to exit; blocked positions remain open",
+  "qbeast_gate": {
+    "version": "2.4.4",
+    "flags_dir": "C:\\BTP\\QBEAST_RUN_NIFTY500_v2.4.4\\output\\eod_stocks",
+    "blocked_order_events": 26,
+    "blocked_holding_events": 13,
+    "blocked_positions_at_final_exit_reasons": {
+      "ATGL": "STAIRCASE",
+      "ADANIENSOL": "STAIRCASE"
+    },
+    "blocked_positions_at_final_exit": 2
+  },
+  "metrics_net": {
+    "volatility_adjusted_proxy": {
+      "total_return": 4.907480590782476,
+      "cagr": 0.26737545701004195,
+      "annualized_volatility": 0.19425860021995373,
+      "sharpe": 1.3328527286893088,
+      "max_drawdown": -0.2874997181237148
+    },
+    "nifty200_price_index": {
+      "total_return": 1.6320482079757674,
+      "cagr": 0.137803645712399,
+      "annualized_volatility": 0.17548578903866388,
+      "sharpe": 0.8301980195344995,
+      "max_drawdown": -0.29426589245461854
+    }
+  },
+  "coverage": {
+    "average_rankable": 131.93333333333334,
+    "average_selected_stocks": 29.9,
+    "nominal_universe": 200
+  },
+  "paper_reference_post_2014_to_june_2021": {
+    "wealth_from_100_nifty50": 261,
+    "wealth_from_100_momentum30": 461,
+    "wealth_from_100_q_mom": 538,
+    "source_note": "paper chart values are gross/reference figures and not directly comparable to this costed proxy"
+  },
+  "limitations": [
+    "The paper does not disclose a complete Q-Mom formula or exact portfolio construction; volatility-adjusted score here is a proxy.",
+    "Nifty 200 Momentum 30 index weighting is not replicated; this proxy is equal weighted.",
+    "Local price gaps reduce the historical Nifty 200 rankable universe; coverage is reported above.",
+    "Open prices use same-day adjusted_close/close factor; source adjustment semantics apply.",
+    "Flat bps costs omit market impact, capacity, taxes specific to actual order size, and corporate-action-specific execution effects."
+  ],
+  "files": [
+    "monthly_portfolio.csv",
+    "monthly_selections.csv",
+    "equity_curve.png",
+    "summary.json"
+  ]
+}

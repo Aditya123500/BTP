@@ -1,0 +1,32 @@
+{
+  "costs_bps_per_side": {
+    "slippage": 10.0,
+    "transaction_cost": 10.0
+  },
+  "period": [
+    "2009-07-01",
+    "2026-06-08"
+  ],
+  "strategy_net": {
+    "total_return": 31.031259522546762,
+    "cagr": 0.22714544864040898,
+    "annualized_volatility": 0.14704029905619037,
+    "sharpe": 1.489456974553077,
+    "max_drawdown": -0.2945046077142135
+  },
+  "nifty500_gross_tri": {
+    "total_return": 6.577251813661859,
+    "cagr": 0.12701691058246833,
+    "annualized_volatility": 0.16425531467436835,
+    "sharpe": 0.8227346477063403,
+    "max_drawdown": -0.3810593207227171
+  },
+  "qbeast_gate": {
+    "version": "2.4.4",
+    "blocked_order_events": 13,
+    "blocked_holding_events": 4,
+    "flags_dir": "C:\\BTP\\QBEAST_RUN_NIFTY500_v2.4.4\\output\\eod_stocks",
+    "unliquidated_final_holdings": 0
+  },
+  "cost_model": "cost on buys+sells from absolute portfolio weight changes; initial entry and final liquidation included"
+}

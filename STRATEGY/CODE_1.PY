@@ -2,8 +2,9 @@
 
 Implements NSE momentum signal and semi-annual May/November cut-offs.
 Transparent proxy, not exact index replication: dataset lacks historical free-
-float market caps, promoter pledges, F&O status, circuit hits, and full official
-liquidity inputs. Uses traded-value liquidity proxy and equal weights.
+float market caps, promoter pledges, F&O status, point-in-time exchange bands,
+and full official liquidity inputs. Uses traded-value liquidity proxy and equal
+weights. The costed backtester applies the separate QBEAST v2.4.4 order gate.
 """
 from __future__ import annotations
 
@@ -51,7 +52,9 @@ def load_prices(price_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     calendar = pd.DatetimeIndex(calendar_data["date"].dropna().drop_duplicates().sort_values())
     if calendar.empty:
         raise ValueError(f"No valid exchange-session dates in {calendar_path}")
-    prices = pd.concat(close_cols, axis=1, sort=True).sort_index().reindex(calendar, method="ffill")
+    # Keep missing sessions missing. Forward-filling can carry a delisted or
+    # suspended stock's stale close indefinitely and fabricate flat returns.
+    prices = pd.concat(close_cols, axis=1, sort=True).sort_index().reindex(calendar)
     turnover = pd.concat(turnover_cols, axis=1, sort=True).reindex(calendar)
     return prices, turnover
 
@@ -81,6 +84,11 @@ def last_on_or_before(series: pd.Series, date: pd.Timestamp) -> float:
     return float(values.iloc[-1]) if not values.empty else math.nan
 
 
+def returns_from_observed_prices(prices: pd.DataFrame) -> pd.DataFrame:
+    """Compute quote-to-quote returns; missing dates stay unpriced, not flat."""
+    return prices.apply(lambda s: s.dropna().pct_change(fill_method=None).reindex(s.index))
+
+
 def score_universe(signal_date: pd.Timestamp, universe: set[str], prices: pd.DataFrame,
                    turnover: pd.DataFrame, previous_holdings: set[str]) -> pd.DataFrame:
     """NSE momentum ratios and cross-sectional normalized score, plus available filters."""
@@ -92,12 +100,19 @@ def score_universe(signal_date: pd.Timestamp, universe: set[str], prices: pd.Dat
     for symbol in sorted(universe):
         if symbol not in prices.columns:
             continue
-        p = prices[symbol].dropna()
-        if p.empty or p.index.min() > signal_date - pd.Timedelta(days=365):
+        p = prices[symbol].loc[:signal_date]
+        observed = p.dropna()
+        if observed.empty or observed.index.min() > signal_date - pd.Timedelta(days=365):
+            continue
+        # Require a current signal-date close; older endpoint closes remain
+        # valid for calendar lookbacks, but stale current marks do not.
+        if signal_date not in p.index or not np.isfinite(p.loc[signal_date]):
             continue
         p_end, p6, p12 = (last_on_or_before(p, d) for d in (signal_date, start_6m, start_12m))
         if not all(np.isfinite(x) and x > 0 for x in (p_end, p6, p12)):
             continue
+        # Volatility uses adjacent exchange sessions only; gaps do not become
+        # fictitious one-day moves.
         daily_log_returns = np.log(p / p.shift(1)).loc[vol_start:signal_date].dropna()
         if len(daily_log_returns) < 220:
             continue
@@ -164,7 +179,7 @@ def rebalance_dates(index: pd.DatetimeIndex) -> list[pd.Timestamp]:
 
 def run_backtest(prices: pd.DataFrame, turnover: pd.DataFrame,
                  snapshots: list[tuple[pd.Timestamp, set[str]]]) -> tuple[pd.DataFrame, pd.DataFrame]:
-    daily_returns = prices.sort_index().pct_change(fill_method=None)
+    daily_returns = returns_from_observed_prices(prices.sort_index())
     selection_rows, weight_events = [], {}
     held: set[str] = set()
     sessions = prices.index
@@ -191,7 +206,9 @@ def run_backtest(prices: pd.DataFrame, turnover: pd.DataFrame,
     for date in sessions:
         day_returns = daily_returns.loc[date]
         valid = {s: w for s, w in weights.items() if s in day_returns.index and pd.notna(day_returns[s])}
-        ret = sum(valid[s] * float(day_returns[s]) for s in valid) if valid else np.nan
+        # Missing quote means unpriced exposure; hold its weight as zero-return
+        # cash for this session and do not renormalize the observed names.
+        ret = sum(valid[s] * float(day_returns[s]) for s in valid) if weights else np.nan
         # Closing rebalance happens after this session's close-to-close return.
         if date in weight_events:
             weights = weight_events[date].copy()

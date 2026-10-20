@@ -1,0 +1,203 @@
+{
+  "_about": "QBEAST AI circuit & liquidity flags - configuration. Keys starting with '_' are comments. Leave a key out to keep its default. Full reference: README.md section 5. v2.4.4 calibrates the final stock/ETF block rules, including the ETF traded-value floor effective 2020-01-01.",
+  "version": "2.4.4",
+  "paths": {
+    "_help": "Where the data lives. data_dir can also be overridden per run with --data.",
+    "data_dir": "E:\\Downloads\\Final_Data",
+    "stocks_eod_subdir": "Final_Clean_Stocks_EOD_Data",
+    "_etfs_eod_subdir": "v2.4.3. ETF EOD folder inside data_dir (e.g. \"Final_ETF_EoD_Data\"); null = run_four_flags does not process ETFs. ETF rows use the *_etf rule sections.",
+    "etfs_eod_subdir": null,
+    "indices_eod_subdir": "Final_Clean_Indices_EOD_Data",
+    "stocks_intraday_subdir": "Final_Clean_Stocks_INTRADAY_Data",
+    "indices_intraday_subdir": "Final_Clean_Indices_INTRADAY_Data",
+    "_mwcb_index_files": "Index files (inside the indices folders) used for MWCB. NIFTY50 also provides the trading calendar. Missing files are skipped.",
+    "mwcb_index_files": {
+      "NIFTY50": "Nifty 50.csv",
+      "SENSEX": "SENSEX.csv"
+    },
+    "_output_dir": "null = write outputs inside data_dir; or a folder path.",
+    "output_dir": null
+  },
+  "run": {
+    "_help": "Parallel runs. workers = processes (e.g. 25 on a 16-core/32-thread CPU). check_every = run the causality self-check on 1 in N stocks (1 = all, 0 = off).",
+    "workers": 25,
+    "check_every": 10,
+    "_mp_start_method": "null = platform default (spawn on Windows). Only change for debugging.",
+    "mp_start_method": null
+  },
+  "circuit": {
+    "_help": "Flag 2 Upper/Lower Circuit (and the causal band inference used for Flag 1 when no band data is supplied).",
+    "_lock_mode": "close_locked = close at high (upper) / low (lower); strict = open = high = low = close.",
+    "lock_mode": "close_locked",
+    "_tick_size": "Exchange tick in rupees; tolerance = 1 tick / prev_close + tol.",
+    "tick_size": 0.05,
+    "tol": 0.0001,
+    "_band_candidates": "Allowed price bands in %.",
+    "band_candidates": [
+      2.0,
+      5.0,
+      10.0,
+      20.0
+    ],
+    "_infer_band": "true = infer the band causally when no upper_band_pct/lower_band_pct columns are given.",
+    "infer_band": true,
+    "band_lookback": 20,
+    "price_eq_rel_tol": 1e-06,
+    "_min_band_ticks": "A band narrower than this many ticks is 'tick_degenerate' (penny stock): reported, never feeds Staircase/Chronic.",
+    "min_band_ticks": 2.0,
+    "fine_tick_size": 0.01,
+    "tick_grid_lookback": 10,
+    "_offgrid_max_slack_pct": "Cap on the tolerance for prices off the 0.05 grid (back-adjusted / fine-tick data).",
+    "offgrid_max_slack_pct": 0.5,
+    "_intraday": "Intraday only: a freeze = pinned at the band for >= intraday_min_pinned_bars consecutive bars.",
+    "intraday_min_pinned_bars": 3,
+    "intraday_require_thin_vol": false,
+    "intraday_vol_frac": 0.1,
+    "intraday_vol_lookback": 20,
+    "_intraday_candidate_mode": "true = when the session band is unknown, test every candidate band intraday (causes false freezes on large caps).",
+    "intraday_candidate_mode": false,
+    "_volume_quality": "v2.4.2. true = zero volume on a bar whose price moved (H>L, or close/open != previous close), or the zero_run_missing-th consecutive zero/blank-volume session so far, is MISSING volume (no data), not a no-trade day. Blank / negative / infinite volume is always MISSING. false = v2.4.1.",
+    "volume_quality": true,
+    "zero_run_missing": 20,
+    "_ca_jump_pct": "v2.4.3. Corporate-action guard: a close-to-close move larger than this % that is not at a matched band (split / bonus / ETF unit split) is ca_suspect: staircase and STEP hold their state on it and it does not feed the band inference. null = off (v2.4.2).",
+    "ca_jump_pct": 35.0
+  },
+  "staircase": {
+    "_help": "Flag 4 circuit staircase: 5 same-direction limit-locked days, thin-volume test; 3 NORMAL sessions to release. Missing volume uses price/OHLC only.",
+    "start_confirm_days": 5,
+    "end_confirm_days": 3,
+    "_vol_frac": "null = no thin-volume requirement for a ladder day; e.g. 0.1 = ladder day volume must be < 10% of baseline.",
+    "vol_frac": null,
+    "_volume_lookback": "Clean trading days in the volume baseline (median).",
+    "volume_lookback": 20,
+    "_normal_vol_frac": "A NORMAL (untagging) day needs volume >= this x baseline.",
+    "normal_vol_frac": 0.5,
+    "_min_baseline_obs": "null = max(3, volume_lookback // 4).",
+    "min_baseline_obs": null,
+    "_intraday_early_block": "Block intraday when yesterday closed at S-1 ladder days and every bar today is pinned in that direction.",
+    "intraday_early_block": true,
+    "_vol_avg_days": "v2.4.2. Trailing average of REAL volume over this many sessions (a ZERO no-trade session counts as 0, MISSING sessions are skipped); used for the tag and the untag. 1 = v2.4.1 (the day's own volume).",
+    "vol_avg_days": 3,
+    "_tag_vol_frac": "v2.4.2. Tag on the S-th (or later) ladder day only if that average < tag_vol_frac x baseline (illiquid ladder). null = v2.4.1 (no volume test for the tag).",
+    "tag_vol_frac": 0.5,
+    "_missing_volume_fallback": "v2.4.2. When the day's volume is MISSING (or no baseline yet), tag / untag are decided on OHLC only and the bar gets STAIRCASE_VOL_WARN. false = v2.4.1 (no untag without volume).",
+    "missing_volume_fallback": true,
+    "_step": "v2.4.4 STEP staircase: stock stale-volume cutoff 20% of baseline; ETF override 10%. Tag on 3 stale sessions or second >=2% flat-then-jump event within 40 sessions. Release after 2 NORMAL sessions. Zero volume qualifies; missing volume alone does not, but a one-price session qualifies.",
+    "step_enabled": true,
+    "step_tag_stale_run": 3,
+    "step_min_stale": 2,
+    "step_jump_pct": 2.0,
+    "step_window": 40,
+    "step_events_to_tag": 2,
+    "step_end_confirm_days": 2,
+    "step_stale_vol_frac": 0.2,
+    "step_price_eq_rel_tol": 1e-06,
+    "_step_exempt_pattern": "v2.4.3. Optional regex on the symbol (case-insensitive): matching symbols never get a STEP tag, e.g. \"LIQUID|OVERNIGHT\" for constant-NAV liquid / overnight ETFs whose price is flat by design. null = no exemption.",
+    "step_exempt_pattern": null,
+    "_zero_volume_as_missing": "Circuit-staircase volume quality treats ZERO as unavailable for volume confirmation and falls back to price/OHLC. STEP separately counts a zero-volume flat session as no real trading, per the final rule.",
+    "zero_volume_as_missing": true,
+    "_vol_reliability": "v2.4.3. When fewer than vol_reliability_min of the last vol_reliability_window sessions have REAL volume (typical before 2010), the volume is treated as unreliable -> OHLC basis, staircase_vol_reason UNRELIABLE. null = off.",
+    "vol_reliability_window": 60,
+    "vol_reliability_min": 0.5,
+    "_direction": "v2.4.3. Separate CLIMBING (upper band) / FALLING (lower band) settings; null = use the shared value above. tag_vol_frac_*: 0 = no volume test. ladder_break_days: non-ladder sessions tolerated while a ladder is BUILDING (0 = v2.4.2: any break resets).",
+    "ladder_break_days": 0,
+    "start_confirm_days_climbing": null,
+    "start_confirm_days_falling": null,
+    "end_confirm_days_climbing": null,
+    "end_confirm_days_falling": null,
+    "tag_vol_frac_climbing": null,
+    "tag_vol_frac_falling": null,
+    "ladder_break_days_climbing": null,
+    "ladder_break_days_falling": null,
+    "step_jump_pct_climbing": null,
+    "step_jump_pct_falling": null
+  },
+  "chronic": {
+    "_help": "Chronic illiquidity (part of TRADE_BLOCKED). Trailing window of sessions; tag at enter_*, untag only when all measures < exit_*.",
+    "window": 60,
+    "min_obs": 60,
+    "enter_single_price": 0.2,
+    "exit_single_price": 0.1,
+    "enter_no_trade": 0.2,
+    "exit_no_trade": 0.1,
+    "enter_circuit": 0.3,
+    "exit_circuit": 0.15,
+    "_missing_volume_as_no_trade": "v2.4.2. false = a MISSING-volume session counts as traded (unknown volume), not as a no-trade session. true = v2.4.1.",
+    "missing_volume_as_no_trade": false,
+    "_min_traded_value": "Stock floor is off. ETF floor starts 2020-01-01: median close x REAL volume over the 20-session window below Rs 250,000 tags; release at Rs 375,000.",
+    "min_traded_value": null,
+    "traded_value_window": 20,
+    "traded_value_exit_mult": 1.5,
+    "min_traded_value_start_date": null
+  },
+  "_etf_sections": "v2.4.3. Separate rules for ETFs: list ONLY the keys whose ETF value differs from the stock section (same key names). Empty = ETFs use the stock rules. Asset class per file from its product_class / asset_class column (ETF vs EQUITY).",
+  "circuit_etf": {
+    "_help": "e.g. \"band_candidates\": [5.0, 10.0, 20.0]"
+  },
+  "staircase_etf": {
+    "_help": "ETF STEP stale-volume cutoff is 10% of baseline; other STEP thresholds match stocks.",
+    "step_stale_vol_frac": 0.1
+  },
+  "chronic_etf": {
+    "_help": "ETF absolute traded-value floor starts 2020-01-01; median 20-session value tags below Rs 250,000 and releases at Rs 375,000.",
+    "min_traded_value": 250000,
+    "min_traded_value_start_date": "2020-01-01",
+    "traded_value_window": 20,
+    "traded_value_exit_mult": 1.5
+  },
+  "mwcb": {
+    "_help": "Flag 3 MWCB. Trigger = index intraday extreme vs reference close crosses a level.",
+    "_basis": "auto = previous quarter's last close before quarterly_basis_before, previous day's close after; or prev_close / quarterly.",
+    "basis": "auto",
+    "quarterly_basis_before": "2013-07-01",
+    "use_high_low": true,
+    "levels": [
+      10,
+      15,
+      20
+    ],
+    "reopen_auction_minutes": 15,
+    "market_close": "15:30",
+    "_halt_rules": "Per level: list of [until HH:MM, halt minutes]; null = halt for the rest of the day, 0 = no halt.",
+    "halt_rules": {
+      "10": [
+        [
+          "13:00",
+          45
+        ],
+        [
+          "14:30",
+          15
+        ],
+        [
+          "24:00",
+          0
+        ]
+      ],
+      "15": [
+        [
+          "13:00",
+          105
+        ],
+        [
+          "14:00",
+          45
+        ],
+        [
+          "24:00",
+          null
+        ]
+      ],
+      "20": [
+        [
+          "24:00",
+          null
+        ]
+      ]
+    }
+  },
+  "gate": {
+    "_help": "TRADE_BLOCKED gate. block_on_mwcb_day = true also blocks decisions taken at the close of an MWCB day (next open).",
+    "block_on_mwcb_day": true
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": "2.4.4",
+  "paths": {
+    "data_dir": "DATASET/Final_without_survivorship_data",
+    "stocks_eod_subdir": "Final_NIFTY500_EoD_Data",
+    "etfs_eod_subdir": null,
+    "indices_eod_subdir": "Final_NIFTY50_EoD_Data",
+    "stocks_intraday_subdir": null,
+    "indices_intraday_subdir": null,
+    "mwcb_index_files": {
+      "NIFTY50": "Nifty 50.csv"
+    },
+    "output_dir": null
+  },
+  "run": {
+    "workers": 2,
+    "check_every": 10
+  },
+  "staircase_etf": {
+    "step_stale_vol_frac": 0.1
+  },
+  "chronic_etf": {
+    "min_traded_value": 250000,
+    "min_traded_value_start_date": "2020-01-01",
+    "traded_value_window": 20,
+    "traded_value_exit_mult": 1.5
+  }
+}

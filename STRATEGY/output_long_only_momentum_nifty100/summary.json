@@ -1,0 +1,54 @@
+{
+  "strategy": "Raju & Chandrasekaran (2019) 12-1 momentum; monthly top-decile Nifty 100; equal-weight long-only",
+  "requested_period": [
+    "2011-01-01",
+    "2019-09-30"
+  ],
+  "actual_execution_period": [
+    "2011-01-03",
+    "2019-10-01"
+  ],
+  "holding_periods": 105,
+  "average_selected_stocks": 9.790476190476191,
+  "average_rankable_constituents": 65.95238095238095,
+  "nominal_universe_size": 100,
+  "average_one_way_turnover_excluding_initial_entry": 0.2814038508187838,
+  "slippage_bps_per_traded_notional_per_side": 10.0,
+  "transaction_cost_bps_per_traded_notional_per_side": 10.0,
+  "cost_model": "cost applies to buys+sells implied by weight changes; final exit cost applies only to positions QBEAST permits to exit; blocked positions remain open",
+  "qbeast_gate": {
+    "version": "2.4.4",
+    "flags_dir": "C:\\BTP\\QBEAST_RUN_NIFTY500_v2.4.4\\output\\eod_stocks",
+    "blocked_order_events": 5,
+    "blocked_holding_events": 5,
+    "blocked_positions_at_final_exit": {}
+  },
+  "metrics_net": {
+    "total_return": 5.350723013056236,
+    "cagr": 0.23547974273530747,
+    "annualized_volatility": 0.17941632787933467,
+    "sharpe": 1.2757141271121144,
+    "max_drawdown": -0.25757193874944095
+  },
+  "metrics_nifty100_price_index": {
+    "total_return": 0.9200388768542709,
+    "cagr": 0.07747716691166184,
+    "annualized_volatility": 0.15623728761356534,
+    "sharpe": 0.5555733372962042,
+    "max_drawdown": -0.2602690080636524
+  },
+  "benchmark_caveat": "Nifty 100 price index open-to-open; stock prices use adj_close and opens scaled by same-day adj_close/close. Benchmark has no matching TRI series, so distributions may not be comparable.",
+  "paper_reported_annual_outperformance_percentage_points": 10.7,
+  "paper_reported_mean_monthly_turnover": 0.321,
+  "limitations": [
+    "Paper period is Jan 2011 through Sep 2019; results depend on local OHLC history and historical membership snapshots.",
+    "Ranking requires valid month-end closes at both 12-1 endpoints; incomplete prices reduce the eligible universe.",
+    "Costs are configurable flat bps and do not model impact, taxes by exchange order details, or capacity."
+  ],
+  "files": [
+    "monthly_portfolio.csv",
+    "monthly_selections.csv",
+    "equity_curve.png",
+    "summary.json"
+  ]
+}
